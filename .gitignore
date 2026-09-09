@@ -3,7 +3,10 @@ goPet
 goPet.exe
 
 *.test
+*.out
 
 *.env
 
 .vscode/
+
+.png
