@@ -1,0 +1,9 @@
+# Go build output
+goPet
+goPet.exe
+
+*.test
+
+*.env
+
+.vscode/
