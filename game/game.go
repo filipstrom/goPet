@@ -1,9 +1,7 @@
 package game
 
 import (
-	"embed"
 	"fmt"
-	"image"
 	"image/color"
 	_ "image/png"
 	"log"
@@ -17,8 +15,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-//go:embed assets/*
-var assetFS embed.FS
+////go:embed assets/*
+//// var assetFS embed.FS
 
 const (
 	speed                    = 10
@@ -29,18 +27,19 @@ const (
 	splayerSpeed             = 2
 )
 
-func loadImage(assetPath string) *ebiten.Image {
-	f, err := assetFS.Open(assetPath)
-	if err != nil {
-		log.Panic(err)
+/*
+	func loadImage(assetPath string) *ebiten.Image {
+		f, err := assetFS.Open(assetPath)
+		if err != nil {
+			log.Panic(err)
+		}
+		img, _, err := image.Decode(f)
+		if err != nil {
+			log.Panic(err)
+		}
+		return ebiten.NewImageFromImage(img)
 	}
-	img, _, err := image.Decode(f)
-	if err != nil {
-		log.Panic(err)
-	}
-	return ebiten.NewImageFromImage(img)
-}
-
+*/
 type game struct {
 	backgroundColor color.RGBA
 	playerImg       *ebiten.Image
@@ -92,7 +91,15 @@ func (g *game) initialize() {
 	})
 
 	g.ai = pet.NewAI("NN", body, "This place")
-	g.playerImg = loadImage("assets/pet.png")
+	//g.playerImg = loadImage("assets/pet.png")
+
+	playerImage := ebiten.NewImage(
+		int(g.ai.GetWidth()),
+		int(g.ai.GetHeigt()),
+	)
+
+	playerImage.Fill(color.White)
+	g.playerImg = playerImage
 	g.fullscreen = true
 	g.initialized = true
 }
@@ -144,8 +151,6 @@ func (g *game) Update() error {
 func (g *game) Draw(screen *ebiten.Image) {
 	screen.Fill(g.backgroundColor)
 
-	op := &ebiten.DrawImageOptions{}
-
 	bounds := g.playerImg.Bounds()
 	imgW := float64(bounds.Dx())
 	imgH := float64(bounds.Dy())
@@ -165,7 +170,7 @@ func (g *game) Draw(screen *ebiten.Image) {
 		)
 
 	}
-
+	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(scaleX, scaleY)
 	op.GeoM.Translate(-g.ai.GetWidth()/2, -g.ai.GetHeigt()/2)
 	op.GeoM.Rotate(g.ai.GetRotation() * math.Pi / 180)

@@ -109,6 +109,7 @@ func (b *Body) Reset() {
 func (ai *AI) ResetBody() {
 	ai.body.Reset()
 }
+
 func (b *Body) CheckBoxCollision(objects []object.Object) bool {
 	for _, obj := range objects {
 		bodyLeft := b.position.X - b.width/2
