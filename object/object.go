@@ -6,4 +6,6 @@ type Object struct {
 	Appearance []int
 	Texture    []int
 	Position   linalg.Vec2
+	Width      float64
+	Height     float64
 }

@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/filipstrom/goPet/linalg"
+	"github.com/filipstrom/goPet/object"
 )
 
 type Direction int
@@ -16,12 +17,10 @@ const (
 )
 
 type Body struct {
-	velocity         float64
 	acc              float64
 	maxVelocity      float64
 	position         linalg.Vec2
-	xVel             float64
-	yVel             float64
+	velocity         linalg.Vec2
 	startPosition    linalg.Vec2
 	rotation         float64
 	speed            float64
@@ -42,18 +41,6 @@ func (b Body) GetWidth() float64 {
 	return b.width
 }
 
-func (b *Body) UpdateGraivity() {
-	maxFallspeed := float64(b.maxVelocity)
-	if b.velocity < maxFallspeed {
-		b.velocity += b.acc
-		if b.velocity > maxFallspeed {
-			b.velocity = maxFallspeed
-		}
-	}
-	b.position.X += b.velocity
-	//b.Move(b.velocity)
-}
-
 func sign(x float64) float64 {
 	if x > 0 {
 		return 1
@@ -65,18 +52,16 @@ func sign(x float64) float64 {
 }
 
 func (b *Body) DeAcc(force float64) {
-	velocity := math.Hypot(b.xVel, b.yVel)
+	velocity := b.velocity.Magnitude()
 
 	if velocity <= force {
-		b.xVel = 0
-		b.yVel = 0
+		b.velocity = linalg.Vec2{X: 0, Y: 0}
 		return
 	}
 
 	scale := (velocity - force) / velocity
 
-	b.xVel *= scale
-	b.yVel *= scale
+	b.velocity.ScalarMult(scale)
 }
 
 func (b Body) String() string {
@@ -84,23 +69,20 @@ func (b Body) String() string {
 }
 
 func (b *Body) Move() {
-	b.position.X += b.xVel
-	b.position.Y += b.yVel
+	b.position.Add(b.velocity)
 }
 
 func (b *Body) Acc(force float64) {
 	angleRad := b.rotation * math.Pi / 180
 	movement := force * b.acc
 
-	b.xVel += math.Cos(angleRad) * movement
-	b.yVel += math.Sin(angleRad) * movement
+	b.velocity.AddDirection(angleRad, movement)
 
-	velocity := math.Hypot(b.xVel, b.yVel)
+	velocity := b.velocity.Magnitude()
 
 	if velocity > b.maxVelocity {
 		scale := b.maxVelocity / velocity
-		b.xVel *= scale
-		b.yVel *= scale
+		b.velocity.ScalarMult(scale)
 	}
 }
 func (b *Body) Rotate(force float64) {
@@ -119,9 +101,7 @@ func (b *Body) Rotate(force float64) {
 }
 
 func (b *Body) Reset() {
-	b.velocity = 0
-	b.xVel = 0
-	b.yVel = 0
+	b.velocity.ScalarMult(0)
 
 	b.position.X = b.startPosition.X
 	b.position.Y = b.startPosition.Y
@@ -129,10 +109,41 @@ func (b *Body) Reset() {
 func (ai *AI) ResetBody() {
 	ai.body.Reset()
 }
+func (b *Body) CheckBoxCollision(objects []object.Object) bool {
+	for _, obj := range objects {
+		bodyLeft := b.position.X - b.width/2
+		bodyRight := b.position.X + b.width/2
+		bodyTop := b.position.Y - b.heigt/2
+		bodyBottom := b.position.Y + b.heigt/2
 
-func (ai *AI) Update() {
-	//ai.body.UpdateGraivity()
+		objLeft := obj.Position.X
+		objRight := obj.Position.X + obj.Width
+		objTop := obj.Position.Y
+		objBottom := obj.Position.Y + obj.Height
+
+		if bodyLeft < objRight &&
+			bodyRight > objLeft &&
+			bodyTop < objBottom &&
+			bodyBottom > objTop {
+			return true
+		}
+	}
+
+	return false
+}
+func (ai *AI) Move(objects []object.Object) {
+	oldPosition := ai.body.position
+
 	ai.body.Move()
+
+	if ai.body.CheckBoxCollision(objects) {
+		ai.body.position = oldPosition
+		ai.body.velocity.ScalarMult(0)
+	}
+}
+
+func (ai *AI) Update(objects []object.Object) {
+	ai.Move(objects)
 	ai.body.DeAcc(0.15)
 
 }
@@ -153,7 +164,7 @@ func (ai AI) GetWidth() float64 {
 	return ai.body.GetWidth()
 }
 
-func (ai *AI) Move(d Direction) {
+func (ai *AI) Control(d Direction) {
 
 	switch d {
 	case DirectionUp:
