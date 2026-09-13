@@ -5,14 +5,13 @@ import (
 	"image/color"
 	_ "image/png"
 	"log"
-	"math"
 
-	"github.com/filipstrom/goPet/linalg"
 	"github.com/filipstrom/goPet/object"
 	"github.com/filipstrom/goPet/pet"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/jakecoffman/cp/v2"
 )
 
 ////go:embed assets/*
@@ -56,41 +55,11 @@ func (g *game) reset() {
 
 func (g *game) initialize() {
 	g.backgroundColor = color.RGBA{0, 181, 226, 255}
-	startPosition := linalg.Vec2{X: 250, Y: 250}
-	body := pet.NewBody(acc, speed, splayerSpeed, 5, 100, 100, startPosition)
+	body := cp.NewBody(1, 10)
 
-	g.walls = append(g.walls, object.Object{
-		Appearance: []int{0, 0, 0},
-		Texture:    []int{0, 0, 0},
-		Position:   linalg.Vec2{X: 0, Y: 0},
-		Width:      screenW,
-		Height:     2,
-	})
+	object := object.Object{Appearance: []int{1, 2, 3}, Texture: []int{1, 2, 3}, Shape: cp.NewBox(body, 50, 30, 0)}
 
-	g.walls = append(g.walls, object.Object{
-		Appearance: []int{0, 0, 0},
-		Texture:    []int{0, 0, 0},
-		Position:   linalg.Vec2{X: 0, Y: screenH - 2},
-		Width:      screenW,
-		Height:     2,
-	})
-
-	g.walls = append(g.walls, object.Object{
-		Appearance: []int{0, 0, 0},
-		Texture:    []int{0, 0, 0},
-		Position:   linalg.Vec2{X: screenW - 2, Y: 0},
-		Width:      2,
-		Height:     screenH,
-	})
-	g.walls = append(g.walls, object.Object{
-		Appearance: []int{0, 0, 0},
-		Texture:    []int{0, 0, 0},
-		Position:   linalg.Vec2{X: 0, Y: 0},
-		Width:      2,
-		Height:     screenH,
-	})
-
-	g.ai = pet.NewAI("NN", body, "This place")
+	g.ai = pet.NewAI("NN", object, "This place")
 	//g.playerImg = loadImage("assets/pet.png")
 
 	playerImage := ebiten.NewImage(
@@ -150,33 +119,18 @@ func (g *game) Update() error {
 
 func (g *game) Draw(screen *ebiten.Image) {
 	screen.Fill(g.backgroundColor)
+	body := o.Shape.Body()
+	pos := body.Position()
 
-	bounds := g.playerImg.Bounds()
-	imgW := float64(bounds.Dx())
-	imgH := float64(bounds.Dy())
+	vector.FillCircle(
+		screen,
+		float32(pos.X),
+		float32(pos.Y),
+		20,
+		color.White,
+		true,
+	)
 
-	scaleX := float64(playrWidth) / (imgW)
-	scaleY := float64(playerHeight) / (imgH)
-
-	for _, ob := range g.walls {
-		vector.FillRect(
-			screen,
-			float32(ob.Position.X),
-			float32(ob.Position.Y),
-			float32(ob.Width),
-			float32(ob.Height),
-			color.White,
-			false,
-		)
-
-	}
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(scaleX, scaleY)
-	op.GeoM.Translate(-g.ai.GetWidth()/2, -g.ai.GetHeigt()/2)
-	op.GeoM.Rotate(g.ai.GetRotation() * math.Pi / 180)
-	op.GeoM.Translate(g.ai.Position())
-
-	screen.DrawImage(g.playerImg, op)
 }
 
 func Start() {
