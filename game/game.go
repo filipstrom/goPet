@@ -131,16 +131,16 @@ func (g *game) Update() error {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		g.ai.Control(pet.DirectionUp)
+		g.ai.Control(pet.DirectionUp, g.walls)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		g.ai.Control(pet.DirectionDown)
+		g.ai.Control(pet.DirectionDown, g.walls)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		g.ai.Control(pet.DirectionLeft)
+		g.ai.Control(pet.DirectionLeft, g.walls)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		g.ai.Control(pet.DirectionRight)
+		g.ai.Control(pet.DirectionRight, g.walls)
 	}
 
 	g.ai.Update(g.walls)

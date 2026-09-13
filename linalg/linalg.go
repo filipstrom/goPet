@@ -16,6 +16,11 @@ func (v *Vec2) ScalarMult(scalar float64) {
 	v.Y *= scalar
 }
 
+func (v *Vec2) Subb(vec2 Vec2) {
+	v.X -= vec2.X
+	v.Y -= vec2.Y
+}
+
 func (v *Vec2) Add(vec2 Vec2) {
 	v.X += vec2.X
 	v.Y += vec2.Y

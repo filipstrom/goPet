@@ -68,6 +68,10 @@ func (b Body) String() string {
 	return "en kropp"
 }
 
+func (b *Body) MoveBack() {
+	b.position.Subb(b.velocity)
+}
+
 func (b *Body) Move() {
 	b.position.Add(b.velocity)
 }
@@ -85,17 +89,35 @@ func (b *Body) Acc(force float64) {
 		b.velocity.ScalarMult(scale)
 	}
 }
-func (b *Body) Rotate(force float64) {
+func (b *Body) Rotate(force float64, objects []object.Object) {
 	//fmt.Println(force)
 	//fmt.Println(b.maxRotationSpeed)
 	//fmt.Println(b.rotation)
+
 	b.rotation += b.maxRotationSpeed * force
+
 	//fmt.Println(b.rotation)
 	if b.rotation >= 360 {
 		b.rotation -= 360
 	}
 	if b.rotation < 0 {
 		b.rotation += 360
+	}
+
+	collition, collisionPoint := b.CheckBoxCollision(objects)
+
+	if collition {
+		b.rotation -= b.maxRotationSpeed * force
+		collisionPoint.Subb(b.position)
+		collisionPoint.Magnitude()
+		collisionPoint.ScalarMult(-0.2)
+		b.position.Add(collisionPoint)
+		if b.rotation >= 360 {
+			b.rotation -= 360
+		}
+		if b.rotation < 0 {
+			b.rotation += 360
+		}
 	}
 	//fmt.Println(b.rotation)
 }
@@ -109,14 +131,21 @@ func (b *Body) Reset() {
 func (ai *AI) ResetBody() {
 	ai.body.Reset()
 }
+func (b *Body) CheckBoxCollision(objects []object.Object) (bool, linalg.Vec2) {
+	angle := b.rotation * math.Pi / 180
 
-func (b *Body) CheckBoxCollision(objects []object.Object) bool {
+	cos := math.Abs(math.Cos(angle))
+	sin := math.Abs(math.Sin(angle))
+
+	halfWidth := (b.width*cos + b.heigt*sin) / 2
+	halfHeight := (b.width*sin + b.heigt*cos) / 2
+
+	bodyLeft := b.position.X - halfWidth
+	bodyRight := b.position.X + halfWidth
+	bodyTop := b.position.Y - halfHeight
+	bodyBottom := b.position.Y + halfHeight
+
 	for _, obj := range objects {
-		bodyLeft := b.position.X - b.width/2
-		bodyRight := b.position.X + b.width/2
-		bodyTop := b.position.Y - b.heigt/2
-		bodyBottom := b.position.Y + b.heigt/2
-
 		objLeft := obj.Position.X
 		objRight := obj.Position.X + obj.Width
 		objTop := obj.Position.Y
@@ -126,20 +155,36 @@ func (b *Body) CheckBoxCollision(objects []object.Object) bool {
 			bodyRight > objLeft &&
 			bodyTop < objBottom &&
 			bodyBottom > objTop {
-			return true
+
+			overlapLeft := math.Max(bodyLeft, objLeft)
+			overlapRight := math.Min(bodyRight, objRight)
+			overlapTop := math.Max(bodyTop, objTop)
+			overlapBottom := math.Min(bodyBottom, objBottom)
+
+			collisionPoint := linalg.Vec2{
+				X: (overlapLeft + overlapRight) / 2,
+				Y: (overlapTop + overlapBottom) / 2,
+			}
+
+			return true, collisionPoint
 		}
 	}
 
-	return false
+	return false, linalg.Vec2{X: 0, Y: 0}
 }
 func (ai *AI) Move(objects []object.Object) {
-	oldPosition := ai.body.position
 
 	ai.body.Move()
+	// TODO: Fix so that it does not stop before the collition (it jumps back to far)
 
-	if ai.body.CheckBoxCollision(objects) {
-		ai.body.position = oldPosition
-		ai.body.velocity.ScalarMult(0)
+	collition, _ := ai.body.CheckBoxCollision(objects)
+
+	for collition {
+		ai.body.MoveBack()
+		ai.body.DeAcc(0.001)
+		ai.body.Move()
+		collition, _ = ai.body.CheckBoxCollision(objects)
+
 	}
 }
 
@@ -165,7 +210,7 @@ func (ai AI) GetWidth() float64 {
 	return ai.body.GetWidth()
 }
 
-func (ai *AI) Control(d Direction) {
+func (ai *AI) Control(d Direction, objects []object.Object) {
 
 	switch d {
 	case DirectionUp:
@@ -173,9 +218,9 @@ func (ai *AI) Control(d Direction) {
 	case DirectionDown:
 		ai.body.Acc(-1)
 	case DirectionLeft:
-		ai.body.Rotate(-1)
+		ai.body.Rotate(-1, objects)
 	case DirectionRight:
-		ai.body.Rotate(1)
+		ai.body.Rotate(1, objects)
 
 	}
 }
