@@ -1,7 +1,10 @@
 package pet
 
 import (
+	"math"
+
 	"github.com/filipstrom/goPet/object"
+	"github.com/jakecoffman/cp/v2"
 )
 
 type Direction int
@@ -13,56 +16,67 @@ const (
 	DirectionRight
 )
 
-func (ai *AI) ResetBody() {
-	ai.body.Reset()
-}
-
-func (ai *AI) Update(objects []object.Object) {
-	ai.Move(objects)
-	ai.body.DeAcc(0.15)
-
-}
-
-func (ai AI) Position() (float64, float64) {
-	return ai.body.position.X, ai.body.position.Y
-}
-
-func (ai AI) GetRotation() float64 {
-	return ai.body.rotation
-}
-
-func (ai AI) GetHeigt() float64 {
-	return ai.body.GetHeigt()
-}
-
-func (ai AI) GetWidth() float64 {
-	return ai.body.GetWidth()
-}
-
 func (ai *AI) Control(d Direction, objects []object.Object) {
+	body := ai.body.Shape.Body()
+
+	angle := body.Angle()
+	force := 400.0
+
+	forward := cp.Vector{
+		X: math.Cos(angle) * force,
+		Y: math.Sin(angle) * force,
+	}
 
 	switch d {
 	case DirectionUp:
-		ai.body.Acc(1)
+		body.ApplyForceAtWorldPoint(
+			forward,
+			body.Position(),
+		)
+
 	case DirectionDown:
-		ai.body.Acc(-1)
+		body.ApplyForceAtWorldPoint(
+			cp.Vector{
+				X: -forward.X,
+				Y: -forward.Y,
+			},
+			body.Position(),
+		)
 	case DirectionLeft:
-		ai.body.Rotate(-1, objects)
+		body.SetTorque(-100)
 	case DirectionRight:
-		ai.body.Rotate(1, objects)
+		body.SetTorque(100)
 
 	}
-}
-
-func (ai *AI) SetPosition(x float64, y float64) {
-	ai.body.position.X = x
-	ai.body.position.Y = y
 }
 
 type AI struct {
 	brain string
 	body  object.Object
 	world string
+}
+
+func (ai *AI) Look(space *cp.Space) cp.SegmentQueryInfo {
+
+	leftEye := cp.Vector{X: 18, Y: -10}
+	// rightEye := cp.Vector{X: 15, Y: 8}
+	leftWorld := ai.GetBody().Shape.Body().LocalToWorld(leftEye)
+	// rightWorld := ai.GetBody().Shape.Body().LocalToWorld(rightEye)
+
+	start := leftWorld
+	angle := ai.body.Shape.Body().Angle()
+	distance := 300.0
+
+	end := cp.Vector{
+		X: start.X + math.Cos(angle)*distance,
+		Y: start.Y + math.Sin(angle)*distance,
+	}
+
+	return space.SegmentQueryFirst(start, end, 0, cp.SHAPE_FILTER_ALL)
+}
+
+func (ai *AI) GetBody() object.Object {
+	return ai.body
 }
 
 func NewAI(brain string, body object.Object, world string) AI {

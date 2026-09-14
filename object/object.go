@@ -9,3 +9,7 @@ type Object struct {
 	Texture    []int
 	Shape      *cp.Shape
 }
+
+func (o Object) String() string {
+	return "ja"
+}

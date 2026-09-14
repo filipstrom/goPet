@@ -47,28 +47,29 @@ type game struct {
 	fullscreen      bool
 	initialized     bool
 	walls           []object.Object
+	space           cp.Space
 }
 
 func (g *game) reset() {
-	g.ai.ResetBody()
+	// g.ai.ResetBody()
 }
 
 func (g *game) initialize() {
 	g.backgroundColor = color.RGBA{0, 181, 226, 255}
 	body := cp.NewBody(1, 10)
 
-	object := object.Object{Appearance: []int{1, 2, 3}, Texture: []int{1, 2, 3}, Shape: cp.NewBox(body, 50, 30, 0)}
+	shape := cp.NewBox(body, 50, 30, 0)
+	shape.SetFriction(0.8)
+
+	object := object.Object{Appearance: []int{1, 2, 3}, Texture: []int{1, 2, 3}, Shape: shape}
 
 	g.ai = pet.NewAI("NN", object, "This place")
 	//g.playerImg = loadImage("assets/pet.png")
+	g.space = *cp.NewSpace()
+	g.space.SetDamping(0.05)
+	g.space.AddBody(body)
+	g.space.AddShape(shape)
 
-	playerImage := ebiten.NewImage(
-		int(g.ai.GetWidth()),
-		int(g.ai.GetHeigt()),
-	)
-
-	playerImage.Fill(color.White)
-	g.playerImg = playerImage
 	g.fullscreen = true
 	g.initialized = true
 }
@@ -95,7 +96,7 @@ func (g *game) Update() error {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		g.ai.ResetBody()
+		// g.ai.ResetBody()
 		fmt.Println("Hej")
 	}
 
@@ -112,15 +113,19 @@ func (g *game) Update() error {
 		g.ai.Control(pet.DirectionRight, g.walls)
 	}
 
-	g.ai.Update(g.walls)
+	// p := g.ai.Look(&g.space)
+	// fmt.Println(p)
+	g.space.Step(1.0 / 60.0)
+
+	// g.ai.Update(g.walls)
 
 	return nil
 }
 
 func (g *game) Draw(screen *ebiten.Image) {
 	screen.Fill(g.backgroundColor)
-	body := o.Shape.Body()
-	pos := body.Position()
+	body := g.ai.GetBody()
+	pos := body.Shape.Body().Position()
 
 	vector.FillCircle(
 		screen,
@@ -128,6 +133,28 @@ func (g *game) Draw(screen *ebiten.Image) {
 		float32(pos.Y),
 		20,
 		color.White,
+		true,
+	)
+	leftEye := cp.Vector{X: 15, Y: -8}
+	rightEye := cp.Vector{X: 15, Y: 8}
+	leftWorld := g.ai.GetBody().Shape.Body().LocalToWorld(leftEye)
+	rightWorld := g.ai.GetBody().Shape.Body().LocalToWorld(rightEye)
+
+	vector.FillCircle(
+		screen,
+		float32(leftWorld.X),
+		float32(leftWorld.Y),
+		3,
+		color.Black,
+		true,
+	)
+
+	vector.FillCircle(
+		screen,
+		float32(rightWorld.X),
+		float32(rightWorld.Y),
+		3,
+		color.Black,
 		true,
 	)
 
