@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"image/color"
 	_ "image/png"
 	"log"
@@ -263,7 +262,7 @@ func (g *game) Draw(screen *ebiten.Image) {
 		}
 	})
 
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Hunger: %.3f", g.ai.GetState()), 20, 20)
+	ebitenutil.DebugPrintAt(screen, g.ai.GetMood().String(), 20, 20)
 	// Eyes
 
 	vector.FillCircle(

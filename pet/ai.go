@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image/color"
 	"math"
-	"strconv"
 
 	"github.com/filipstrom/goPet/object"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -57,7 +56,7 @@ func (ai *AI) Control(d Direction, objects []object.Object) {
 func (ai *AI) changeState(key string, value float64) {
 	switch key {
 	case "hunger":
-		ai.state.hunger = clamp(ai.state.hunger + value)
+		ai.mood.hunger = clamp(ai.mood.hunger + value)
 	}
 }
 
@@ -88,17 +87,17 @@ func (ai *AI) Eat(space *cp.Space) bool {
 
 }
 
-func (ai *AI) GetState() State {
-	return ai.state
+func (ai *AI) GetMood() Mood {
+	return ai.mood
 
 }
 
-type State struct {
+type Mood struct {
 	hunger float64
 }
 
-func (state State) String() string {
-	return strconv.FormatFloat(state.hunger, 'g', -1, 64)
+func (mood Mood) String() string {
+	return fmt.Sprintf("Hunger: %.3f", mood.hunger)
 }
 
 type AI struct {
@@ -106,7 +105,7 @@ type AI struct {
 	body      object.Object
 	EatSensor *cp.Shape
 	world     string
-	state     State
+	mood      Mood
 }
 
 func (ai *AI) rayCast(start cp.Vector, end cp.Vector, screen *ebiten.Image) {
