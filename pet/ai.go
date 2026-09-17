@@ -1,6 +1,7 @@
 package pet
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 
@@ -51,6 +52,19 @@ func (ai *AI) Control(d Direction, objects []object.Object) {
 		body.SetTorque(100)
 
 	}
+}
+
+func (ai *AI) Eat(space *cp.Space) {
+	space.ShapeQuery(ai.EatSensor, func(shape *cp.Shape, points *cp.ContactPointSet) {
+		if shape.UserData == "food" {
+			fmt.Print("Mums")
+			space.RemoveShape(shape)
+			space.RemoveBody(shape.Body())
+		}
+		fmt.Println("Hej")
+
+	})
+
 }
 
 type AI struct {

@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"image/color"
 	_ "image/png"
 	"log"
@@ -47,7 +46,7 @@ type game struct {
 	fullscreen      bool
 	initialized     bool
 	walls           []object.Object
-	space           cp.Space
+	space           *cp.Space
 	circles         []object.Object
 }
 
@@ -72,7 +71,7 @@ func (g *game) initialize() {
 
 	g.ai = pet.NewAI("NN", ob, "This place", eatSensor)
 	//g.playerImg = loadImage("assets/pet.png")
-	g.space = *cp.NewSpace()
+	g.space = cp.NewSpace()
 	g.space.SetDamping(0.05)
 	g.space.AddBody(body)
 	g.space.AddShape(shape)
@@ -164,13 +163,7 @@ func (g *game) Update() error {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		g.space.ShapeQuery(g.ai.EatSensor, func(shape *cp.Shape, points *cp.ContactPointSet) {
-
-			if shape.UserData == "food" {
-				fmt.Print("Mums")
-			}
-			fmt.Println("Hej")
-		})
+		g.ai.Eat(g.space)
 
 	}
 
@@ -214,32 +207,44 @@ func (g *game) Draw(screen *ebiten.Image) {
 	leftWorld := g.ai.GetBody().Shape.Body().LocalToWorld(leftEye)
 	rightWorld := g.ai.GetBody().Shape.Body().LocalToWorld(rightEye)
 
-	for _, wall := range g.walls {
+	g.space.EachShape(func(shape *cp.Shape) {
+		switch s := shape.Class.(type) {
 
-		bb := wall.Shape.BB()
+		case *cp.Circle:
+			pos := s.TransformC()
 
-		width := bb.R - bb.L
-		height := bb.T - bb.B
-		vector.FillRect(
-			screen,
-			float32(bb.L),
-			float32(bb.B),
-			float32(width),
-			float32(height),
-			color.White,
-			false,
-		)
-	}
+			vector.FillCircle(
+				screen,
+				float32(pos.X),
+				float32(pos.Y),
+				float32(s.Radius()),
+				color.White,
+				true,
+			)
 
-	for _, ob := range g.circles {
-		bb := ob.Shape.BB()
-		//bb.T
+		case *cp.PolyShape:
+			if s.Count() == 4 {
 
-		//height := bb.T - bb.B
-		vector.FillCircle(
-			screen, float32(bb.Center().X), float32(bb.Center().Y), float32((bb.T-bb.B)/2), color.Black, false,
-		)
-	}
+				bb := s.BB()
+
+				width := bb.R - bb.L
+				height := bb.T - bb.B
+				vector.FillRect(
+					screen,
+					float32(bb.L),
+					float32(bb.B),
+					float32(width),
+					float32(height),
+					color.White,
+					false,
+				)
+
+			}
+
+		case *cp.Segment:
+			//fmt.Println("segment")
+		}
+	})
 
 	vector.FillCircle(
 		screen,
@@ -259,7 +264,7 @@ func (g *game) Draw(screen *ebiten.Image) {
 		true,
 	)
 
-	g.ai.Look(&g.space, screen)
+	g.ai.Look(g.space, screen)
 
 }
 
