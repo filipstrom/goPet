@@ -57,19 +57,66 @@ func (g *game) reset() {
 func (g *game) initialize() {
 	g.backgroundColor = color.RGBA{0, 181, 226, 255}
 	body := cp.NewBody(1, 10)
+	body.SetPosition(cp.Vector{X: 100, Y: 100})
 
-	shape := cp.NewBox(body, 50, 30, 0)
+	shape := cp.NewCircle(body, 20, cp.Vector{})
 	shape.SetFriction(0.8)
 
-	object := object.Object{Appearance: []int{1, 2, 3}, Texture: []int{1, 2, 3}, Shape: shape}
+	ob := object.Object{Appearance: []int{1, 2, 3}, Texture: []int{1, 2, 3}, Shape: shape}
 
-	g.ai = pet.NewAI("NN", object, "This place")
+	g.ai = pet.NewAI("NN", ob, "This place")
 	//g.playerImg = loadImage("assets/pet.png")
 	g.space = *cp.NewSpace()
 	g.space.SetDamping(0.05)
 	g.space.AddBody(body)
 	g.space.AddShape(shape)
 
+	// making walls
+
+	// Left wall
+	leftBody := cp.NewStaticBody()
+	leftBody.SetPosition(cp.Vector{X: 2.5, Y: 250})
+
+	leftWall := cp.NewBox(leftBody, 5, 500, 0)
+
+	g.space.AddBody(leftBody)
+	g.space.AddShape(leftWall)
+
+	// Right wall
+	rightBody := cp.NewStaticBody()
+	rightBody.SetPosition(cp.Vector{X: 500 - 2.5, Y: 250})
+
+	rightWall := cp.NewBox(rightBody, 5, 500, 0)
+
+	g.space.AddBody(rightBody)
+	g.space.AddShape(rightWall)
+
+	// Top wall
+	topBody := cp.NewStaticBody()
+	topBody.SetPosition(cp.Vector{X: 250, Y: 2.5})
+
+	topWall := cp.NewBox(topBody, 500, 5, 0)
+
+	g.space.AddBody(topBody)
+	g.space.AddShape(topWall)
+
+	// Bottom wall
+	bottomBody := cp.NewStaticBody()
+	bottomBody.SetPosition(cp.Vector{X: 250, Y: 500 - 2.5})
+
+	bottomWall := cp.NewBox(bottomBody, 500, 5, 0)
+
+	g.space.AddBody(bottomBody)
+	g.space.AddShape(bottomWall)
+
+	// Adding wall
+
+	g.walls = append(g.walls,
+		object.Object{Shape: leftWall},
+		object.Object{Shape: rightWall},
+		object.Object{Shape: topWall},
+		object.Object{Shape: bottomWall},
+	)
 	g.fullscreen = true
 	g.initialized = true
 }
@@ -140,6 +187,23 @@ func (g *game) Draw(screen *ebiten.Image) {
 	leftWorld := g.ai.GetBody().Shape.Body().LocalToWorld(leftEye)
 	rightWorld := g.ai.GetBody().Shape.Body().LocalToWorld(rightEye)
 
+	for _, wall := range g.walls {
+
+		bb := wall.Shape.BB()
+
+		width := bb.R - bb.L
+		height := bb.T - bb.B
+		vector.FillRect(
+			screen,
+			float32(bb.L),
+			float32(bb.B),
+			float32(width),
+			float32(height),
+			color.White,
+			false,
+		)
+	}
+
 	vector.FillCircle(
 		screen,
 		float32(leftWorld.X),
@@ -157,6 +221,8 @@ func (g *game) Draw(screen *ebiten.Image) {
 		color.Black,
 		true,
 	)
+
+	g.ai.Look(&g.space, screen)
 
 }
 

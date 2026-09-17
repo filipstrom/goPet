@@ -1,9 +1,12 @@
 package pet
 
 import (
+	"image/color"
 	"math"
 
 	"github.com/filipstrom/goPet/object"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/jakecoffman/cp/v2"
 )
 
@@ -56,23 +59,36 @@ type AI struct {
 	world string
 }
 
-func (ai *AI) Look(space *cp.Space) cp.SegmentQueryInfo {
+func (ai *AI) rayCast(start cp.Vector, end cp.Vector, screen *ebiten.Image) {
+	vector.StrokeLine(screen, float32(start.X), float32(start.Y), float32(end.X), float32(end.Y), 2, color.Black, false)
+}
+
+func (ai *AI) Look(space *cp.Space, screen *ebiten.Image) cp.SegmentQueryInfo {
 
 	leftEye := cp.Vector{X: 18, Y: -10}
-	// rightEye := cp.Vector{X: 15, Y: 8}
+	rightEye := cp.Vector{X: 18, Y: 10}
 	leftWorld := ai.GetBody().Shape.Body().LocalToWorld(leftEye)
-	// rightWorld := ai.GetBody().Shape.Body().LocalToWorld(rightEye)
+	rightWorld := ai.GetBody().Shape.Body().LocalToWorld(rightEye)
 
-	start := leftWorld
+	startl := leftWorld
+	startr := rightWorld
+
 	angle := ai.body.Shape.Body().Angle()
 	distance := 300.0
 
 	end := cp.Vector{
-		X: start.X + math.Cos(angle)*distance,
-		Y: start.Y + math.Sin(angle)*distance,
+		X: startl.X + math.Cos(angle)*distance,
+		Y: startl.Y + math.Sin(angle)*distance,
 	}
 
-	return space.SegmentQueryFirst(start, end, 0, cp.SHAPE_FILTER_ALL)
+	endr := cp.Vector{
+		X: startr.X + math.Cos(angle)*distance,
+		Y: startr.Y + math.Sin(angle)*distance,
+	}
+
+	ai.rayCast(startr, endr, screen)
+	ai.rayCast(startl, end, screen)
+	return space.SegmentQueryFirst(startl, end, 0, cp.SHAPE_FILTER_ALL)
 }
 
 func (ai *AI) GetBody() object.Object {
