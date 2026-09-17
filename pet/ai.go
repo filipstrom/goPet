@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"strconv"
 
 	"github.com/filipstrom/goPet/object"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -53,18 +54,51 @@ func (ai *AI) Control(d Direction, objects []object.Object) {
 
 	}
 }
+func (ai *AI) changeState(key string, value float64) {
+	switch key {
+	case "hunger":
+		ai.state.hunger = clamp(ai.state.hunger + value)
+	}
+}
 
-func (ai *AI) Eat(space *cp.Space) {
+func clamp(v float64) float64 {
+	if v > 1 {
+		return 1
+	}
+	if v < -1 {
+		return -1
+	}
+	return v
+}
+
+func (ai *AI) Eat(space *cp.Space) bool {
+	eated := false
 	space.ShapeQuery(ai.EatSensor, func(shape *cp.Shape, points *cp.ContactPointSet) {
 		if shape.UserData == "food" {
 			fmt.Print("Mums")
 			space.RemoveShape(shape)
 			space.RemoveBody(shape.Body())
+			ai.changeState("hunger", 0.2)
+			eated = true
 		}
 		fmt.Println("Hej")
 
 	})
+	return eated
 
+}
+
+func (ai *AI) GetState() State {
+	return ai.state
+
+}
+
+type State struct {
+	hunger float64
+}
+
+func (state State) String() string {
+	return strconv.FormatFloat(state.hunger, 'g', -1, 64)
 }
 
 type AI struct {
@@ -72,6 +106,7 @@ type AI struct {
 	body      object.Object
 	EatSensor *cp.Shape
 	world     string
+	state     State
 }
 
 func (ai *AI) rayCast(start cp.Vector, end cp.Vector, screen *ebiten.Image) {

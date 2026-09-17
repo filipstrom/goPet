@@ -1,13 +1,16 @@
 package game
 
 import (
+	"fmt"
 	"image/color"
 	_ "image/png"
 	"log"
+	"math/rand"
 
 	"github.com/filipstrom/goPet/object"
 	"github.com/filipstrom/goPet/pet"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/jakecoffman/cp/v2"
@@ -128,8 +131,20 @@ func (g *game) initialize() {
 	)
 
 	// Making food
+	spawnFood(g)
+	g.fullscreen = true
+	g.initialized = true
+}
+func spawnFood(g *game) {
 	foodBody := cp.NewBody(1, 10)
-	foodBody.SetPosition(cp.Vector{X: 300, Y: 300})
+
+	x := 30 + rand.Float64()*(500-60)
+	y := 30 + rand.Float64()*(500-60)
+
+	foodBody.SetPosition(cp.Vector{
+		X: x,
+		Y: y,
+	})
 	foodShape := cp.NewCircle(foodBody, 20, cp.Vector{})
 	g.space.AddBody(foodBody)
 	g.space.AddShape(foodShape)
@@ -137,8 +152,6 @@ func (g *game) initialize() {
 
 	g.circles = append(g.circles, object.Object{Appearance: []int{1, 1, 1}, Texture: []int{1, 1, 1}, Shape: foodShape})
 
-	g.fullscreen = true
-	g.initialized = true
 }
 
 func newGame() *game {
@@ -163,7 +176,10 @@ func (g *game) Update() error {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		g.ai.Eat(g.space)
+		eated := g.ai.Eat(g.space)
+		if eated {
+			spawnFood(g)
+		}
 
 	}
 
@@ -223,6 +239,7 @@ func (g *game) Draw(screen *ebiten.Image) {
 			)
 
 		case *cp.PolyShape:
+			// Walls/Rectangles
 			if s.Count() == 4 {
 
 				bb := s.BB()
@@ -245,6 +262,9 @@ func (g *game) Draw(screen *ebiten.Image) {
 			//fmt.Println("segment")
 		}
 	})
+
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Hunger: %.3f", g.ai.GetState()), 20, 20)
+	// Eyes
 
 	vector.FillCircle(
 		screen,
