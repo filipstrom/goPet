@@ -48,6 +48,7 @@ type game struct {
 	initialized     bool
 	walls           []object.Object
 	space           cp.Space
+	circles         []object.Object
 }
 
 func (g *game) reset() {
@@ -58,18 +59,27 @@ func (g *game) initialize() {
 	g.backgroundColor = color.RGBA{0, 181, 226, 255}
 	body := cp.NewBody(1, 10)
 	body.SetPosition(cp.Vector{X: 100, Y: 100})
-
 	shape := cp.NewCircle(body, 20, cp.Vector{})
 	shape.SetFriction(0.8)
 
 	ob := object.Object{Appearance: []int{1, 2, 3}, Texture: []int{1, 2, 3}, Shape: shape}
 
-	g.ai = pet.NewAI("NN", ob, "This place")
+	eatSensor := cp.NewCircle(
+		body,
+		8,                      // radius
+		cp.Vector{X: 25, Y: 0}, // framför kroppen
+	)
+
+	g.ai = pet.NewAI("NN", ob, "This place", eatSensor)
 	//g.playerImg = loadImage("assets/pet.png")
 	g.space = *cp.NewSpace()
 	g.space.SetDamping(0.05)
 	g.space.AddBody(body)
 	g.space.AddShape(shape)
+
+	eatSensor.SetSensor(true)
+
+	g.space.AddShape(eatSensor)
 
 	// making walls
 
@@ -117,6 +127,17 @@ func (g *game) initialize() {
 		object.Object{Shape: topWall},
 		object.Object{Shape: bottomWall},
 	)
+
+	// Making food
+	foodBody := cp.NewBody(1, 10)
+	foodBody.SetPosition(cp.Vector{X: 300, Y: 300})
+	foodShape := cp.NewCircle(foodBody, 20, cp.Vector{})
+	g.space.AddBody(foodBody)
+	g.space.AddShape(foodShape)
+	foodShape.UserData = "food"
+
+	g.circles = append(g.circles, object.Object{Appearance: []int{1, 1, 1}, Texture: []int{1, 1, 1}, Shape: foodShape})
+
 	g.fullscreen = true
 	g.initialized = true
 }
@@ -143,8 +164,14 @@ func (g *game) Update() error {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		// g.ai.ResetBody()
-		fmt.Println("Hej")
+		g.space.ShapeQuery(g.ai.EatSensor, func(shape *cp.Shape, points *cp.ContactPointSet) {
+
+			if shape.UserData == "food" {
+				fmt.Print("Mums")
+			}
+			fmt.Println("Hej")
+		})
+
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
@@ -201,6 +228,16 @@ func (g *game) Draw(screen *ebiten.Image) {
 			float32(height),
 			color.White,
 			false,
+		)
+	}
+
+	for _, ob := range g.circles {
+		bb := ob.Shape.BB()
+		//bb.T
+
+		//height := bb.T - bb.B
+		vector.FillCircle(
+			screen, float32(bb.Center().X), float32(bb.Center().Y), float32((bb.T-bb.B)/2), color.Black, false,
 		)
 	}
 

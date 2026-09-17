@@ -54,9 +54,10 @@ func (ai *AI) Control(d Direction, objects []object.Object) {
 }
 
 type AI struct {
-	brain string
-	body  object.Object
-	world string
+	brain     string
+	body      object.Object
+	EatSensor *cp.Shape
+	world     string
 }
 
 func (ai *AI) rayCast(start cp.Vector, end cp.Vector, screen *ebiten.Image) {
@@ -95,11 +96,12 @@ func (ai *AI) GetBody() object.Object {
 	return ai.body
 }
 
-func NewAI(brain string, body object.Object, world string) AI {
+func NewAI(brain string, body object.Object, world string, eatSensor *cp.Shape) AI {
 	return AI{
-		brain: brain,
-		body:  body,
-		world: world,
+		brain:     brain,
+		body:      body,
+		world:     world,
+		EatSensor: eatSensor,
 	}
 }
 
