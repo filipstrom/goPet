@@ -20,7 +20,7 @@ const (
 	DirectionRight
 )
 
-func (ai *AI) Control(d Direction, objects []object.Object) {
+func (ai *AI) Control(d Direction) {
 	body := ai.body.Shape.Body()
 
 	angle := body.Angle()
@@ -60,6 +60,32 @@ func (ai *AI) changeState(key string, value float64) {
 	}
 }
 
+func (ai *AI) rotate(s float32) {
+	ai.body.Shape.Body().SetTorque(float64(100 * s))
+}
+
+func (ai *AI) addForce(f float32) {
+
+	body := ai.body.Shape.Body()
+
+	angle := body.Angle()
+	force := float64(400.0 * f)
+
+	forward := cp.Vector{
+		X: math.Cos(angle) * force,
+		Y: math.Sin(angle) * force,
+	}
+
+	body.ApplyForceAtWorldPoint(
+		cp.Vector{
+			X: -forward.X,
+			Y: -forward.Y,
+		},
+		body.Position(),
+	)
+
+}
+
 func clamp(v float64) float64 {
 	if v > 1 {
 		return 1
@@ -73,7 +99,13 @@ func clamp(v float64) float64 {
 func (ai *AI) Eat(space *cp.Space) bool {
 	eated := false
 	space.ShapeQuery(ai.EatSensor, func(shape *cp.Shape, points *cp.ContactPointSet) {
-		if shape.UserData == "food" {
+		data, ok := shape.UserData.(object.ShapeData)
+
+		if !ok {
+			return
+		}
+
+		if data.IsFood {
 			fmt.Print("Mums")
 			space.RemoveShape(shape)
 			space.RemoveBody(shape.Body())
@@ -91,6 +123,10 @@ func (ai *AI) GetMood() Mood {
 	return ai.mood
 
 }
+func (ai *AI) Move(out []float32) {
+	ai.addForce(out[0])
+	ai.rotate(out[1])
+}
 
 type Mood struct {
 	hunger float64
@@ -104,7 +140,8 @@ type AI struct {
 	brain     string
 	body      object.Object
 	EatSensor *cp.Shape
-	world     string
+	space     *cp.Space
+	screen    *ebiten.Image
 	mood      Mood
 }
 
@@ -112,7 +149,7 @@ func (ai *AI) rayCast(start cp.Vector, end cp.Vector, screen *ebiten.Image) {
 	vector.StrokeLine(screen, float32(start.X), float32(start.Y), float32(end.X), float32(end.Y), 2, color.Black, false)
 }
 
-func (ai *AI) Look(space *cp.Space, screen *ebiten.Image) cp.SegmentQueryInfo {
+func (ai *AI) Look() ([]float32, []float32) {
 
 	leftEye := cp.Vector{X: 18, Y: -10}
 	rightEye := cp.Vector{X: 18, Y: 10}
@@ -135,24 +172,84 @@ func (ai *AI) Look(space *cp.Space, screen *ebiten.Image) cp.SegmentQueryInfo {
 		Y: startr.Y + math.Sin(angle)*distance,
 	}
 
-	ai.rayCast(startr, endr, screen)
-	ai.rayCast(startl, end, screen)
-	return space.SegmentQueryFirst(startl, end, 0, cp.SHAPE_FILTER_ALL)
+	//ai.rayCast(startr, endr, ai.screen)
+	//ai.rayCast(startl, end, ai.screen)
+
+	leftHit := ai.space.SegmentQueryFirst(
+		startl, end, 0, cp.SHAPE_FILTER_ALL,
+	)
+
+	rightHit := ai.space.SegmentQueryFirst(
+		startr, endr, 0, cp.SHAPE_FILTER_ALL,
+	)
+
+	return getApperance(leftHit), getApperance(rightHit)
 }
 
+func getApperance(hit cp.SegmentQueryInfo) []float32 {
+	if hit.Shape == nil {
+		return []float32{300, 0, 0, 0}
+	}
+
+	distance := float32(hit.Alpha * 300)
+
+	data, ok := hit.Shape.UserData.(object.ShapeData)
+
+	if !ok {
+		panic(ok)
+	}
+
+	return []float32{
+		distance / 300,
+		data.Appearance[0],
+		data.Appearance[1],
+		data.Appearance[2],
+	}
+
+}
 func (ai *AI) GetBody() object.Object {
 	return ai.body
 }
 
-func NewAI(brain string, body object.Object, world string, eatSensor *cp.Shape) AI {
+func NewAI(brain string, body object.Object, space *cp.Space, eatSensor *cp.Shape) AI {
 	return AI{
 		brain:     brain,
 		body:      body,
-		world:     world,
+		space:     space,
 		EatSensor: eatSensor,
 	}
 }
 
+func (ai *AI) GetInputs() []float32 {
+	left, right := ai.Look()
+	body := ai.body.Shape.Body()
+	velocity := body.Velocity()
+
+	angle := body.Angle()
+
+	forwardX := math.Cos(angle)
+	forwardY := math.Sin(angle)
+
+	speed := velocity.X*forwardX + velocity.Y*forwardY
+	normalizedSpeed := clamp(speed / 137.0)
+
+	normalizedRotationSpeed := clamp(body.AngularVelocity() / 3.5)
+
+	inputs := []float32{
+		float32(ai.mood.hunger),
+		float32(normalizedSpeed),
+		float32(math.Sin(angle)),
+		float32(math.Cos(angle)),
+		float32(normalizedRotationSpeed),
+	}
+
+	inputs = append(inputs, left...)
+	inputs = append(inputs, right...)
+
+	return inputs
+
+}
+
 func (ai AI) String() string {
-	return ai.brain + ", " + ai.body.String() + ", " + ai.world
+	return ai.brain + ", " + ai.body.String() + ", "
 }

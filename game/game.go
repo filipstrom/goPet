@@ -1,10 +1,14 @@
 package game
 
 import (
+	"encoding/json"
+	"fmt"
 	"image/color"
 	_ "image/png"
 	"log"
 	"math/rand"
+	"os"
+	"os/exec"
 
 	"github.com/filipstrom/goPet/object"
 	"github.com/filipstrom/goPet/pet"
@@ -50,6 +54,8 @@ type game struct {
 	walls           []object.Object
 	space           *cp.Space
 	circles         []object.Object
+	decoder         *json.Decoder
+	encoder         *json.Encoder
 }
 
 func (g *game) reset() {
@@ -71,12 +77,12 @@ func (g *game) initialize() {
 		cp.Vector{X: 25, Y: 0}, // framför kroppen
 	)
 
-	g.ai = pet.NewAI("NN", ob, "This place", eatSensor)
 	//g.playerImg = loadImage("assets/pet.png")
 	g.space = cp.NewSpace()
 	g.space.SetDamping(0.05)
 	g.space.AddBody(body)
 	g.space.AddShape(shape)
+	g.ai = pet.NewAI("NN", ob, g.space, eatSensor)
 
 	eatSensor.SetSensor(true)
 
@@ -121,19 +127,41 @@ func (g *game) initialize() {
 	g.space.AddShape(bottomWall)
 
 	// Adding wall
-
-	g.walls = append(g.walls,
-		object.Object{Shape: leftWall},
-		object.Object{Shape: rightWall},
-		object.Object{Shape: topWall},
-		object.Object{Shape: bottomWall},
-	)
+	bottomWall.UserData = object.ShapeData{Appearance: []float32{0, 0, 1}, IsFood: false}
+	topWall.UserData = object.ShapeData{Appearance: []float32{0, 0, 1}, IsFood: false}
+	leftWall.UserData = object.ShapeData{Appearance: []float32{0, 0, 1}, IsFood: false}
+	rightWall.UserData = object.ShapeData{Appearance: []float32{0, 0, 1}, IsFood: false}
 
 	// Making food
 	spawnFood(g)
 	g.fullscreen = true
 	g.initialized = true
+
+	// Making brain
+	cmd := exec.Command("python", "brain.py")
+	cmd.Stderr = os.Stderr
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		panic(err)
+	}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		panic(err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		panic(err)
+	}
+
+	decoder := json.NewDecoder(stdout)
+	g.decoder = decoder
+	encoder := json.NewEncoder(stdin)
+	g.encoder = encoder
+
 }
+
 func spawnFood(g *game) {
 	foodBody := cp.NewBody(1, 10)
 
@@ -147,9 +175,7 @@ func spawnFood(g *game) {
 	foodShape := cp.NewCircle(foodBody, 20, cp.Vector{})
 	g.space.AddBody(foodBody)
 	g.space.AddShape(foodShape)
-	foodShape.UserData = "food"
-
-	g.circles = append(g.circles, object.Object{Appearance: []int{1, 1, 1}, Texture: []int{1, 1, 1}, Shape: foodShape})
+	foodShape.UserData = object.ShapeData{Appearance: []float32{1, 0, 0}, IsFood: true}
 
 }
 
@@ -183,20 +209,36 @@ func (g *game) Update() error {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		g.ai.Control(pet.DirectionUp, g.walls)
+		g.ai.Control(pet.DirectionUp)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		g.ai.Control(pet.DirectionDown, g.walls)
+		g.ai.Control(pet.DirectionDown)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		g.ai.Control(pet.DirectionLeft, g.walls)
+		g.ai.Control(pet.DirectionLeft)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		g.ai.Control(pet.DirectionRight, g.walls)
+		g.ai.Control(pet.DirectionRight)
 	}
 
 	// p := g.ai.Look(&g.space)
 	// fmt.Println(p)
+
+	inputs := g.ai.GetInputs()
+
+	if err := g.encoder.Encode(inputs); err != nil {
+		panic(err)
+	}
+
+	outputs := []float32{}
+
+	if err := g.decoder.Decode(&outputs); err != nil {
+		panic(err)
+	}
+	fmt.Println(outputs)
+
+	g.ai.Move(outputs)
+
 	g.space.Step(1.0 / 60.0)
 
 	// g.ai.Update(g.walls)
@@ -283,7 +325,7 @@ func (g *game) Draw(screen *ebiten.Image) {
 		true,
 	)
 
-	g.ai.Look(g.space, screen)
+	// g.ai.Look()
 
 }
 

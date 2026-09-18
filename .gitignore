@@ -10,3 +10,13 @@ goPet.exe
 .vscode/
 
 *.png
+
+*.pyc
+*.env
+
+*.pth
+
+__pycache__/
+saves/
+petenv/
+.vscode/
