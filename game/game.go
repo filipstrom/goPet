@@ -56,10 +56,45 @@ type game struct {
 	circles         []object.Object
 	decoder         *json.Decoder
 	encoder         *json.Encoder
+	reward          float32
+	food            *cp.Shape
+	steps           int
 }
 
-func (g *game) reset() {
-	// g.ai.ResetBody()
+func (g *game) resetWorld() {
+
+	if g.food != nil {
+		g.space.RemoveShape(g.food)
+		g.space.RemoveBody(g.food.Body())
+		g.food = nil
+	}
+
+	body := g.ai.GetBody().Shape.Body()
+
+	body.SetPosition(cp.Vector{X: 100, Y: 100})
+	body.SetVelocity(0, 0)
+	body.SetAngle(0)
+	body.SetAngularVelocity(0)
+	body.SetTorque(0)
+
+	g.reward = 0
+
+	foodBody := cp.NewBody(1, 10)
+
+	x := 350.0
+	y := 350.0
+
+	foodBody.SetPosition(cp.Vector{
+		X: x,
+		Y: y,
+	})
+	foodShape := cp.NewCircle(foodBody, 20, cp.Vector{})
+	g.space.AddBody(foodBody)
+	g.space.AddShape(foodShape)
+	foodShape.UserData = object.ShapeData{Appearance: []float32{1, 0, 0}, IsFood: true}
+	g.food = foodShape
+
+	g.space.Step(1.0 / 60.0)
 }
 
 func (g *game) initialize() {
@@ -160,6 +195,8 @@ func (g *game) initialize() {
 	encoder := json.NewEncoder(stdin)
 	g.encoder = encoder
 
+	g.resetWorld()
+
 }
 
 func spawnFood(g *game) {
@@ -176,7 +213,7 @@ func spawnFood(g *game) {
 	g.space.AddBody(foodBody)
 	g.space.AddShape(foodShape)
 	foodShape.UserData = object.ShapeData{Appearance: []float32{1, 0, 0}, IsFood: true}
-
+	g.food = foodShape
 }
 
 func newGame() *game {
@@ -201,7 +238,7 @@ func (g *game) Update() error {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		eated := g.ai.Eat(g.space)
+		eated := g.ai.Eat()
 		if eated {
 			spawnFood(g)
 		}
@@ -224,26 +261,152 @@ func (g *game) Update() error {
 	// p := g.ai.Look(&g.space)
 	// fmt.Println(p)
 
-	inputs := g.ai.GetInputs()
-
-	if err := g.encoder.Encode(inputs); err != nil {
-		panic(err)
-	}
-
-	outputs := []float32{}
-
-	if err := g.decoder.Decode(&outputs); err != nil {
-		panic(err)
-	}
-	fmt.Println(outputs)
-
-	g.ai.Move(outputs)
+	// train(g)
+	play(g)
+	// fmt.Println(outputs)
 
 	g.space.Step(1.0 / 60.0)
+
+	g.steps += 1
+	fmt.Println(g.steps)
 
 	// g.ai.Update(g.walls)
 
 	return nil
+}
+func trainHeadless() {
+	g := newGame()
+	g.initialize()
+
+	stop := make(chan bool)
+	steps := 0
+	go func() {
+		var input string
+		for {
+			fmt.Scanln(&input)
+
+			if input == "q" {
+				stop <- true
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-stop:
+			send := struct {
+				Type string `json:"type"`
+			}{
+				Type: "save",
+			}
+
+			if err := g.encoder.Encode(send); err != nil {
+				panic(err)
+			}
+
+			fmt.Println("Stopping training...")
+			return
+
+		default:
+			train(g)
+			steps++
+
+			if steps >= 1000 {
+				g.resetWorld()
+				steps = 0
+			}
+		}
+	}
+}
+
+func train(g *game) {
+	inputs := g.ai.GetInputs()
+
+	send := struct {
+		Type    string `json:"type"`
+		Payload struct {
+			Reward float32   `json:"reward"`
+			State  []float32 `json:"state"`
+		} `json:"payload"`
+	}{
+		Type: "train",
+		Payload: struct {
+			Reward float32   `json:"reward"`
+			State  []float32 `json:"state"`
+		}{g.reward, inputs},
+	}
+
+	if err := g.encoder.Encode(send); err != nil {
+		panic(err)
+	}
+	g.reward = 0
+	var msg Message
+
+	if err := g.decoder.Decode(&msg); err != nil {
+		panic(err)
+	}
+
+	switch msg.Type {
+	case "action":
+		var action []float32
+
+		if err := json.Unmarshal(msg.Payload, &action); err != nil {
+			panic(err)
+		}
+		//oldDistance := g.ai.DistanceToFood()
+		ate := g.ai.Move(action)
+		g.space.Step(1.0 / 60.0)
+
+		if ate {
+			g.reward = 5.0
+			spawnFood(g)
+		} else {
+
+		}
+	}
+
+}
+
+func play(g *game) {
+	inputs := g.ai.GetInputs()
+
+	send := struct {
+		Type    string    `json:"type"`
+		Payload []float32 `json:"payload"`
+	}{
+		Type:    "getAction",
+		Payload: inputs,
+	}
+
+	if err := g.encoder.Encode(send); err != nil {
+		panic(err)
+	}
+	var msg Message
+
+	if err := g.decoder.Decode(&msg); err != nil {
+		panic(err)
+	}
+
+	switch msg.Type {
+	case "action":
+		var action []float32
+
+		if err := json.Unmarshal(msg.Payload, &action); err != nil {
+			panic(err)
+		}
+
+		ate := g.ai.Move(action)
+
+		if ate {
+			spawnFood(g)
+		}
+	}
+}
+
+type Message struct {
+	Type    string          `json:"type"`
+	Payload json.RawMessage `json:"payload"`
 }
 
 func (g *game) Draw(screen *ebiten.Image) {
@@ -330,6 +493,11 @@ func (g *game) Draw(screen *ebiten.Image) {
 }
 
 func Start() {
+	training := true
+	if training {
+		trainHeadless()
+	}
+
 	ebiten.SetWindowSize(900, 500)
 	ebiten.SetWindowTitle("Hello, World!")
 	if err := ebiten.RunGame(newGame()); err != nil {

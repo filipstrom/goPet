@@ -78,8 +78,8 @@ func (ai *AI) addForce(f float32) {
 
 	body.ApplyForceAtWorldPoint(
 		cp.Vector{
-			X: -forward.X,
-			Y: -forward.Y,
+			X: forward.X,
+			Y: forward.Y,
 		},
 		body.Position(),
 	)
@@ -96,9 +96,9 @@ func clamp(v float64) float64 {
 	return v
 }
 
-func (ai *AI) Eat(space *cp.Space) bool {
+func (ai *AI) Eat() bool {
 	eated := false
-	space.ShapeQuery(ai.EatSensor, func(shape *cp.Shape, points *cp.ContactPointSet) {
+	ai.space.ShapeQuery(ai.EatSensor, func(shape *cp.Shape, points *cp.ContactPointSet) {
 		data, ok := shape.UserData.(object.ShapeData)
 
 		if !ok {
@@ -107,12 +107,12 @@ func (ai *AI) Eat(space *cp.Space) bool {
 
 		if data.IsFood {
 			fmt.Print("Mums")
-			space.RemoveShape(shape)
-			space.RemoveBody(shape.Body())
+			ai.space.RemoveShape(shape)
+			ai.space.RemoveBody(shape.Body())
 			ai.changeState("hunger", 0.2)
 			eated = true
 		}
-		fmt.Println("Hej")
+		// fmt.Println("Hej")
 
 	})
 	return eated
@@ -123,9 +123,13 @@ func (ai *AI) GetMood() Mood {
 	return ai.mood
 
 }
-func (ai *AI) Move(out []float32) {
+func (ai *AI) Move(out []float32) bool {
 	ai.addForce(out[0])
 	ai.rotate(out[1])
+	if out[2] > 0 {
+		return ai.Eat()
+	}
+	return false
 }
 
 type Mood struct {
@@ -134,6 +138,28 @@ type Mood struct {
 
 func (mood Mood) String() string {
 	return fmt.Sprintf("Hunger: %.3f", mood.hunger)
+}
+
+func (ai *AI) DistanceToFood() float64 {
+	aiPos := ai.body.Shape.Body().Position()
+
+	distance := math.Inf(1)
+
+	ai.space.EachShape(func(shape *cp.Shape) {
+		data, ok := shape.UserData.(object.ShapeData)
+		if !ok || !data.IsFood {
+			return
+		}
+
+		foodPos := shape.Body().Position()
+
+		dx := foodPos.X - aiPos.X
+		dy := foodPos.Y - aiPos.Y
+
+		distance = math.Sqrt(dx*dx + dy*dy)
+	})
+
+	return distance
 }
 
 type AI struct {
@@ -183,10 +209,10 @@ func (ai *AI) Look() ([]float32, []float32) {
 		startr, endr, 0, cp.SHAPE_FILTER_ALL,
 	)
 
-	return getApperance(leftHit), getApperance(rightHit)
+	return ai.getApperance(leftHit), ai.getApperance(rightHit)
 }
 
-func getApperance(hit cp.SegmentQueryInfo) []float32 {
+func (ai *AI) getApperance(hit cp.SegmentQueryInfo) []float32 {
 	if hit.Shape == nil {
 		return []float32{300, 0, 0, 0}
 	}
@@ -196,7 +222,16 @@ func getApperance(hit cp.SegmentQueryInfo) []float32 {
 	data, ok := hit.Shape.UserData.(object.ShapeData)
 
 	if !ok {
-		panic(ok)
+		switch hit.Shape {
+		case ai.body.Shape:
+			fmt.Println("LOOK HIT OWN BODY")
+
+		case ai.EatSensor:
+			fmt.Println("LOOK HIT OWN EAT SENSOR")
+
+		default:
+			fmt.Printf("LOOK HIT UNKNOWN SHAPE: %#v\n", hit.Shape)
+		}
 	}
 
 	return []float32{

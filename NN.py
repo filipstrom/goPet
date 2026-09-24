@@ -16,13 +16,22 @@ class Brain(nn.Module):
         nn.Linear(32, outputs),
         nn.Tanh()
         )
-        self.optimizer = optim.Adam(self.network.parameters(), lr=0.0003)
+        self.inputs= inputs
+        self.outputs = outputs
+        self.optimizer = optim.Adam(self.network.parameters(), lr=0.003)
 
 
     def save(self):
         # name it the with how many inputs and outputs it has
-        torch.save(self.state_dict(), f"brain-{self.INPUTS}x{self.OUTPUTS}.pth")  
-        print("fil sparad")
+        torch.save(self.state_dict(), f"brain-{self.inputs}x{self.outputs}.pth")  
+        # print("fil sparad")
+
+    def load(self):
+        state = torch.load(
+        f"brain-{self.inputs}x{self.outputs}.pth",
+        weights_only=True
+        )
+        self.load_state_dict(state)
 
     def get_action(self, state):
         mean = self.forward(state)
